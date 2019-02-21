@@ -2,8 +2,8 @@
 import re
 
 def parseMsg(msg):
-    dateTimeUser, messagepayload = msg.split(": ")
-    date = dateTimeUser.split(", ")[0]
+    dateTimeUsername, messagepayload = msg.split(": ")
+    msgDate, msgTime, username = re.split(", | - ", dateTimeUsername)
 
 
 if __name__ == '__main__':
