@@ -1,6 +1,11 @@
 import re
+import emoji
+
 import matplotlib.pyplot as plt
 import WhatsAppVisualizationModule as statPlot
+
+from collections import Counter
+from PyQt5.QtCore import QObject, pyqtSignal, pyqtSlot
 
 class Message(object):
     def __init__(self, date, sender, content):
@@ -9,11 +14,29 @@ class Message(object):
         self.content = content
         self.isMedia = content == '<Medien ausgeschlossen>\n'
 
+class MessageListReader(QObject):
 
-class MessageList(object):
-    def __init__(self):
+    emojiSignal = pyqtSignal(dict)
+    wordSignal = pyqtSignal(dict)
+    messageByPersonSignal = pyqtSignal(dict)
+    mediaMessageByPersonSignal = pyqtSignal(dict)
+
+    def __init__(self, parent=None):
+        super(MessageListReader, self).__init__(parent)
         self.msgList = []
         self.senderList = []
+        self.emojiCount = {}
+        self.wordCount = {}
+        self.msgByUserCount = {}
+        self.mediaMsgByUserCount = {}
+
+    
+    def loadFile(self, filename):
+        with open(filename, "r", encoding="utf-8") as f:
+            line = f.readline()
+            while line:
+                line = f.readline()
+                self.feedMessage(line)
 
     def appendTrailingMessage(self, content):
         self.msgList[-1].content += content
@@ -41,38 +64,68 @@ class MessageList(object):
             # trailing message of previous message
             self.appendTrailingMessage(msg)
 
+    def getwordCount(self, numberOfmostCommon = 10, caseSensitive = False):
+        wordCnt = Counter()
+        for msg in self.msgList:
+            if not msg.isMedia:
+                for word in msg.content.split():
+                    if caseSensitive:
+                        wordCnt[word] +=1
+                    else:
+                        wordCnt[word.lower()] +=1
+        ret = dict()
+        for person, numWords in wordCnt.most_common(numberOfmostCommon):
+            ret[person] = numWords
+        return ret
 
-if __name__ == '__main__':
+    def getemojiCount(self, numberOfmostCommon = 10):
+        emojiCnt = Counter()
+        for msg in self.msgList:
+            if not msg.isMedia:
+                for c in msg.content:
+                    if c in emoji.UNICODE_EMOJI:
+                        emojiCnt[c] += 1
+        ret = dict()
+        for person, numEmojis in emojiCnt.most_common(numberOfmostCommon):
+            ret[person] = numEmojis
+        return ret
 
-    filename = "F:\Downloads\_chat.txt"
-    msgList = MessageList()
+    def getTextMessagesPerPersonCount(self, numberOfmostCommon = 10):
+        textMessageCnt = Counter()
+        for msg in self.msgList:
+            if not msg.isMedia:
+                textMessageCnt[msg.sender] += 1
+        ret = dict()
+        for person, numMessages in textMessageCnt.most_common(numberOfmostCommon):
+            ret[person] = numMessages
+        return ret
 
-    with open(filename, "r", encoding="utf-8") as f:
-        line = f.readline()
-        while line:
-            line = f.readline()
-            msgList.feedMessage(line)
-
-    print("All in all number of messages: {0}".format(len(msgList.msgList)))
-
-    mostCommonWords = statPlot.wordCount(msgList)
-    statPlot.plotMostUsed(mostCommonWords, 'used words', yLabel='Word')
-
-    mostCommonEmojis = statPlot.emojiCount(msgList)
-    statPlot.plotMostUsed(mostCommonEmojis, 'used Emojis', yLabel='Emoji')
-
-    messageByUserCount = statPlot.messageByUserCount(msgList, isMedia=False)
-    mediaByUserCount = statPlot.messageByUserCount(msgList, isMedia=True)
-    statPlot.plotMostUsed(messageByUserCount, 'messages spammers', yLabel='Person')
-    statPlot.plotMostUsed(mediaByUserCount, 'media spammers', yLabel='Person')
-
-    mostQuacky = max(msgList.msgList, key=lambda x: len(x.content))
-    print("{} {} {} characters".format(mostQuacky.sender,
-          mostQuacky.date, len(mostQuacky.content)))
-
-    plt.show()
+    def getMediaMessagesPerPersonCount(self, numberOfmostCommon = 10):
+        mediaMessageCnt = Counter()
+        for msg in self.msgList:
+            if msg.isMedia:
+                mediaMessageCnt[msg.sender] += 1
+        ret = dict()
+        for person, numMessages in mediaMessageCnt.most_common(numberOfmostCommon):
+            ret[person] = numMessages
+        return ret
 
 
-
-
-
+    @pyqtSlot(int)
+    def onJob(self, indx):
+        if indx == 0:
+            if not self.emojiCount:
+                self.emojiCount = self.getemojiCount()
+            self.emojiSignal.emit(self.emojiCount)
+        if indx == 1:
+            if not self.wordCount:
+                self.wordCount = self.getwordCount()
+            self.wordSignal.emit(self.wordCount)
+        if indx == 2:
+            if not self.msgByUserCount:
+                self.msgByUserCount = self.getTextMessagesPerPersonCount()
+            self.messageByPersonSignal.emit(self.msgByUserCount)
+        if indx == 3:
+            if not self.mediaMsgByUserCount:
+                self.mediaMsgByUserCount = self.getMediaMessagesPerPersonCount()
+            self.mediaMessageByPersonSignal.emit(self.mediaMsgByUserCount)
