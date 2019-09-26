@@ -30,14 +30,6 @@ class MessageListReader(QObject):
         self.msgByUserCount = {}
         self.mediaMsgByUserCount = {}
 
-    
-    def loadFile(self, filename):
-        with open(filename, "r", encoding="utf-8") as f:
-            line = f.readline()
-            while line:
-                line = f.readline()
-                self.feedMessage(line)
-
     def appendTrailingMessage(self, content):
         self.msgList[-1].content += content
 
@@ -111,21 +103,39 @@ class MessageListReader(QObject):
         return ret
 
 
-    @pyqtSlot(int)
-    def onJob(self, indx):
-        if indx == 0:
+    @pyqtSlot(str)
+    def onJob(self, name):
+        if name == 'emoji':
             if not self.emojiCount:
                 self.emojiCount = self.getemojiCount()
             self.emojiSignal.emit(self.emojiCount)
-        if indx == 1:
+        if name == 'word':
             if not self.wordCount:
                 self.wordCount = self.getwordCount()
             self.wordSignal.emit(self.wordCount)
-        if indx == 2:
+        if name == 'msgByUser':
             if not self.msgByUserCount:
                 self.msgByUserCount = self.getTextMessagesPerPersonCount()
             self.messageByPersonSignal.emit(self.msgByUserCount)
-        if indx == 3:
+        if name == 'mediaMsgByUser':
             if not self.mediaMsgByUserCount:
                 self.mediaMsgByUserCount = self.getMediaMessagesPerPersonCount()
             self.mediaMessageByPersonSignal.emit(self.mediaMsgByUserCount)
+
+    @pyqtSlot(str)
+    def loadFile(self, filename):
+        with open(filename, "r", encoding="utf-8") as f:
+            line = f.readline()
+            while line:
+                line = f.readline()
+                self.feedMessage(line)
+        
+        # clear content
+        self.emojiCount = {}
+        self.wordCount = {}
+        self.msgByUserCount = {}
+        self.mediaMsgByUserCount = {}
+
+        self.emojiCount = self.getemojiCount()
+        self.emojiSignal.emit(self.emojiCount)
+
