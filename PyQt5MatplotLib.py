@@ -7,11 +7,12 @@ import WhatsApp
 
 import numpy as np
 import matplotlib.font_manager as fm
+from datetime import date
 ###############################################################################
 
 from PyQt5.QtWidgets import (QApplication, QWidget, QMainWindow, QAction, 
-    QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QSpacerItem, QSizePolicy, QPushButton, QCalendarWidget, QFileDialog)
-from PyQt5.QtGui import QIcon
+    QVBoxLayout, QHBoxLayout, QGridLayout, QLabel, QSpacerItem, QSizePolicy, QPushButton, QCalendarWidget, QFileDialog)
+from PyQt5.QtGui import QIcon, QFont
 from PyQt5.QtCore import QObject, QDate, QSize, Qt, pyqtSignal, pyqtSlot
 
 ###############################################################################
@@ -33,6 +34,9 @@ class MainWindow(QMainWindow):
 
     loadNewFileSignal = pyqtSignal(str)
 
+    setMinDateSignal = pyqtSignal(object)  
+    setMaxDateSignal = pyqtSignal(object)  
+
     def makeConnections(self, otherObject):
         self.mySignal.connect(otherObject.onJob)
     
@@ -52,44 +56,60 @@ class MainWindow(QMainWindow):
         self.width = 640
         self.height = 480
 
+        self.mindataToDisplay =  date(1900, 1, 1)
+        self.maxdataToDisplay =  date(2100, 12, 31)
+
         self.setWindowTitle(self.title)
         self.setGeometry(self.left, self.top, self.width, self.height)
         self.statusBar().showMessage('Ready')
 
         self.initMenubar()
         self.initToolBar()
+        self.plotWidget = WidgetPlot(self)
 
         widget = QWidget(self)
         self.setCentralWidget(widget)
         vlay = QVBoxLayout(widget)
-        hlay = QHBoxLayout()
-        vlay.addLayout(hlay)
+        
+        self.nameLabel = QLabel('Min Date', self)
+        self.nameLabel2 = QLabel('Max Date', self)
 
-        self.nameLabel = QLabel('Name:', self)
-        self.line = QLineEdit(self)
-        self.nameLabel2 = QLabel('Result', self)
+        self.nameLabel.setFont(QFont('Arial', 20))
+        self.nameLabel2.setFont(QFont('Arial', 20))
 
-        hlay.addWidget(self.nameLabel)
-        hlay.addWidget(self.line)
-        hlay.addWidget(self.nameLabel2)
-        hlay.addItem(QSpacerItem(1000, 10, QSizePolicy.Expanding))
+        self.pyCal = QCalendarWidget()
+        self.pyCal.setGridVisible(True)
+        self.pyCal.clicked[QDate].connect(self.sendMinDate)
 
-        #pybutton = QPushButton('Click me', self)
-        #pybutton.clicked.connect(self.clickMethod)
 
-        pyCal = QCalendarWidget()
-        pyCal.setGridVisible(True)
-        pyCal.clicked[QDate].connect(self.showDate)
+        self.pyCal2 = QCalendarWidget()
+        self.pyCal2.setGridVisible(True)
+        self.pyCal2.clicked[QDate].connect(self.sendMaxDate)
 
-        hlay2 = QHBoxLayout()
-        hlay2.addWidget(pyCal)
-        hlay2.addItem(QSpacerItem(1000, 10, QSizePolicy.Expanding))
-        vlay.addLayout(hlay2)
-        self.plotWidget = WidgetPlot(self)
+        grid = QGridLayout()
+        grid.addWidget(self.nameLabel, 0, 0, Qt.AlignCenter)
+        grid.addWidget(self.nameLabel2, 0, 1, Qt.AlignCenter)
+        grid.addWidget(self.pyCal, 1, 0)
+        grid.addWidget(self.pyCal2, 1, 1)
+        
+        vlay.addLayout(grid)
         vlay.addWidget(self.plotWidget)
 
-    def showDate(self, date):     
-        print(date.toString())        
+    def showDate(self, date): 
+        d = date.toPyDate()    
+        print(date.toString())
+        #self.setMinDateSignal.emit(d)
+
+    def sendMinDate(self, date):
+        d = date.toPyDate()    
+        print(date.toString()) 
+        self.setMinDateSignal.emit(d)
+            
+    def sendMaxDate(self, date):
+        d = date.toPyDate()    
+        print(date.toString()) 
+        self.setMaxDateSignal.emit(d)
+
 
     def initMenubar(self):
         mainMenu = self.menuBar()
@@ -182,8 +202,22 @@ class MainWindow(QMainWindow):
     def onData(self, data):
         print('Receveived data')
         self.currentData = data
+        self.plotWidget.canvas.clearPlot()
         self.plotWidget.canvas.plot(self.currentData, self.indxPlotTable[self.indx])
 
+    @pyqtSlot(object)
+    def setMinDateInCalendar(self, minData):
+        self.mindataToDisplay = minData
+        self.pyCal.setMinimumDate(QDate(minData.year, minData.month, minData.day))
+        self.pyCal2.setMinimumDate(QDate(minData.year, minData.month, minData.day))
+        self.pyCal.setSelectedDate(QDate(minData.year, minData.month, minData.day))
+        
+    @pyqtSlot(object)
+    def setMaxDateInCalendar(self, maxData):
+        self.maxdataToDisplay = maxData
+        self.pyCal.setMaximumDate(QDate(maxData.year, maxData.month, maxData.day))
+        self.pyCal2.setMaximumDate(QDate(maxData.year, maxData.month, maxData.day))
+        self.pyCal2.setSelectedDate(QDate(maxData.year, maxData.month, maxData.day))
 
 ###############################################################################
 
@@ -235,8 +269,13 @@ if __name__ == "__main__":
     msgListReader.messageByPersonSignal.connect(mainWin.onData)
     msgListReader.mediaMessageByPersonSignal.connect(mainWin.onData)
 
+    msgListReader.minDateSignal.connect(mainWin.setMinDateInCalendar)
+    msgListReader.maxDateSignal.connect(mainWin.setMaxDateInCalendar)
+
     mainWin.loadNewFileSignal.connect(msgListReader.loadFile)
     mainWin.acquireDataSignal.connect(msgListReader.onJob)
+    mainWin.setMinDateSignal.connect(msgListReader.setMinDate)
+    mainWin.setMaxDateSignal.connect(msgListReader.setMaxDate)
     
     mainWin.show()
     sys.exit( app.exec_())
