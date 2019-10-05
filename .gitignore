@@ -1,5 +1,5 @@
 .vscode/
-PyQt5MatplotLib.spec
+*.spec
 __pycache__/
 build/
 dist/
