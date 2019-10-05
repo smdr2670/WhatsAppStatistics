@@ -1,20 +1,18 @@
 import re
 import emoji
 
-import matplotlib.pyplot as plt
-
 from collections import Counter
 from datetime import date
 from PyQt5.QtCore import QObject, pyqtSignal, pyqtSlot
 
-class Message(object):
+class WhatsAppMessage(object):
     def __init__(self, date, sender, content):
         self.date = date
         self.sender = sender
         self.content = content
         self.isMedia = content == '<Medien ausgeschlossen>\n'
 
-class MessageListReader(QObject):
+class WhatsAppMessageParser(QObject):
 
     emojiSignal = pyqtSignal(dict)
     wordSignal = pyqtSignal(dict)
@@ -25,7 +23,7 @@ class MessageListReader(QObject):
     maxDateSignal = pyqtSignal(object)
 
     def __init__(self, parent=None):
-        super(MessageListReader, self).__init__(parent)
+        super(WhatsAppMessageParser, self).__init__(parent)
         self.msgList = []
         self.senderList = []
 
@@ -36,6 +34,9 @@ class MessageListReader(QObject):
         self.wordCount = {}
         self.msgByUserCount = {}
         self.mediaMsgByUserCount = {}
+
+        self.lastRequestedPlot = ""
+        self.firstLoad = True
 
     def appendTrailingMessage(self, content):
         self.msgList[-1].content += content
@@ -61,7 +62,7 @@ class MessageListReader(QObject):
                 self.maxDate = dt
                 msgSender = splitMsg[0]
                 msgPayload = " ".join(splitMsg[1:])
-                self.appendMessage(Message(dt, msgSender, msgPayload))
+                self.appendMessage(WhatsAppMessage(dt, msgSender, msgPayload))
             else:
                 # Meta info message (group was created, user joined/left etc.)
                 pass
@@ -121,19 +122,20 @@ class MessageListReader(QObject):
 
     @pyqtSlot(str)
     def onJob(self, name):
-        if name == 'emoji':
+        self.lastRequestedPlot = name
+        if name == 'Emojis':
             if not self.emojiCount:
                 self.emojiCount = self.getemojiCount()
             self.emojiSignal.emit(self.emojiCount)
-        if name == 'word':
+        if name == 'Words':
             if not self.wordCount:
                 self.wordCount = self.getwordCount()
             self.wordSignal.emit(self.wordCount)
-        if name == 'msgByUser':
+        if name == 'Messages by user':
             if not self.msgByUserCount:
                 self.msgByUserCount = self.getTextMessagesPerPersonCount()
             self.messageByPersonSignal.emit(self.msgByUserCount)
-        if name == 'mediaMsgByUser':
+        if name == 'Media messages by user':
             if not self.mediaMsgByUserCount:
                 self.mediaMsgByUserCount = self.getMediaMessagesPerPersonCount()
             self.mediaMessageByPersonSignal.emit(self.mediaMsgByUserCount)
@@ -160,9 +162,12 @@ class MessageListReader(QObject):
         self.minDateSignal.emit(self.minDate)
         self.maxDateSignal.emit(self.maxDate)
 
-        #TODO do not change index when new file is loaded
-        self.emojiCount = self.getemojiCount()
-        self.emojiSignal.emit(self.emojiCount)
+        # do not change index when new file is loaded
+        if self.firstLoad:
+            self.firstLoad = False
+            self.onJob('Emojis')
+        else:
+            self.onJob(self.lastRequestedPlot)
 
     @pyqtSlot(object)
     def setMinDate(self, minDate):
@@ -172,8 +177,7 @@ class MessageListReader(QObject):
         self.msgByUserCount = {}
         self.mediaMsgByUserCount = {}
 
-        self.emojiCount = self.getemojiCount()
-        self.emojiSignal.emit(self.emojiCount)
+        self.onJob(self.lastRequestedPlot)
 
     @pyqtSlot(object)
     def setMaxDate(self, maxDate):
@@ -183,5 +187,4 @@ class MessageListReader(QObject):
         self.msgByUserCount = {}
         self.mediaMsgByUserCount = {}
 
-        self.emojiCount = self.getemojiCount()
-        self.emojiSignal.emit(self.emojiCount)
+        self.onJob(self.lastRequestedPlot)

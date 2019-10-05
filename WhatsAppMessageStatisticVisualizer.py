@@ -1,27 +1,25 @@
-import sys
-import random
 
-import WhatsApp
+import emoji
+import WhatsAppMessageParser as wa
 
 ###############################################################################
 
 import numpy as np
-import matplotlib.font_manager as fm
-from datetime import date
-###############################################################################
-
-from PyQt5.QtWidgets import (QApplication, QWidget, QMainWindow, QAction, 
-    QVBoxLayout, QHBoxLayout, QGridLayout, QLabel, QSpacerItem, QSizePolicy, QPushButton, QCalendarWidget, QFileDialog)
-from PyQt5.QtGui import QIcon, QFont
-from PyQt5.QtCore import QObject, QDate, QSize, Qt, pyqtSignal, pyqtSlot
-
-###############################################################################
-
 import matplotlib.pyplot as plt
-from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
+
+from datetime import date
+
 from matplotlib.figure import Figure
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.backends.backend_qt5agg import NavigationToolbar2QT as NavigationToolbar
+from matplotlib.offsetbox import (OffsetImage, AnnotationBbox)
+
+###############################################################################
+
+from PyQt5.QtWidgets import (QWidget, QMainWindow, QAction, 
+    QVBoxLayout, QGridLayout, QLabel, QSizePolicy, QCalendarWidget, QFileDialog)
+from PyQt5.QtGui import QIcon, QFont
+from PyQt5.QtCore import QObject, QDate, QSize, Qt, pyqtSignal, pyqtSlot
 
 ###############################################################################
 
@@ -47,20 +45,19 @@ class MainWindow(QMainWindow):
 
         self.currentData = {}
         self.indx = 0
-        self.indxPlotTable = {0: 'emoji', 1: 'word', 2: 'msgByUser', 3: 'mediaMsgByUser'}
+        self.indxPlotTable = {0: 'Emojis', 1: 'Words', 2: 'Messages by user', 3: 'Media messages by user'}
         self.currentFile = ""
 
         self.title = 'Whatsapp Statisic Application'
-        self.left = 30
-        self.top = 30
-        self.width = 640
-        self.height = 480
 
-        self.mindataToDisplay =  date(1900, 1, 1)
-        self.maxdataToDisplay =  date(2100, 12, 31)
+        self.mindataToDisplay = date(1900, 1, 1)
+        self.currentMinData = date(1900, 1, 1)
+
+        self.maxdataToDisplay = date(2100, 12, 31)      
+        self.currentMaxData = date(2100, 12, 31)      
 
         self.setWindowTitle(self.title)
-        self.setGeometry(self.left, self.top, self.width, self.height)
+        self.setGeometry(30, 30, 1280, 1024)
         self.statusBar().showMessage('Ready')
 
         self.initMenubar()
@@ -81,7 +78,6 @@ class MainWindow(QMainWindow):
         self.pyCal.setGridVisible(True)
         self.pyCal.clicked[QDate].connect(self.sendMinDate)
 
-
         self.pyCal2 = QCalendarWidget()
         self.pyCal2.setGridVisible(True)
         self.pyCal2.clicked[QDate].connect(self.sendMaxDate)
@@ -95,20 +91,14 @@ class MainWindow(QMainWindow):
         vlay.addLayout(grid)
         vlay.addWidget(self.plotWidget)
 
-    def showDate(self, date): 
-        d = date.toPyDate()    
-        print(date.toString())
-        #self.setMinDateSignal.emit(d)
 
     def sendMinDate(self, date):
-        d = date.toPyDate()    
-        print(date.toString()) 
-        self.setMinDateSignal.emit(d)
+        self.currentMinData = date.toPyDate()    
+        self.setMinDateSignal.emit(self.currentMinData)
             
     def sendMaxDate(self, date):
-        d = date.toPyDate()    
-        print(date.toString()) 
-        self.setMaxDateSignal.emit(d)
+        self.currentMaxData = date.toPyDate()    
+        self.setMaxDateSignal.emit(self.currentMaxData)
 
 
     def initMenubar(self):
@@ -153,9 +143,10 @@ class MainWindow(QMainWindow):
 
     def loadFile(self):
         fname = QFileDialog.getOpenFileName(self, 'Open file', 'c:\\',"Text files (*.txt)")
-        self.currentFile = fname[0]
-        self.plotWidget.canvas.clearPlot()
-        self.loadNewFileSignal.emit(self.currentFile)
+        if fname[0]:
+            self.currentFile = fname[0]
+            self.plotWidget.canvas.clearPlot()
+            self.loadNewFileSignal.emit(self.currentFile)
         
     def clickMethod(self):
         print('Clicked Pyqt button.')
@@ -170,9 +161,7 @@ class MainWindow(QMainWindow):
             self.nameLabel2.setText(str(float(self.line.text())*2))
 
     def nextPlot(self):
-        print("Requesting next plot")
-        self.plotWidget.canvas.clearPlot()
-        
+        self.plotWidget.canvas.clearPlot()     
         if self.currentFile != "":
             if self.indx + 1 >= len(self.indxPlotTable):
                 self.indx = 0
@@ -183,9 +172,7 @@ class MainWindow(QMainWindow):
             
 
     def prevPlot(self):
-        print("Requesting previous plot")
         self.plotWidget.canvas.clearPlot()
-
         if self.currentFile != "":
             if self.indx - 1 < 0:
                 self.indx = len(self.indxPlotTable) - 1
@@ -195,19 +182,19 @@ class MainWindow(QMainWindow):
             self.acquireDataSignal.emit(self.indxPlotTable[self.indx])
         
     def clearPlot(self):
-        print("Clear next plot")
         self.plotWidget.canvas.clearPlot()
 
     @pyqtSlot(dict)
     def onData(self, data):
-        print('Receveived data')
         self.currentData = data
         self.plotWidget.canvas.clearPlot()
-        self.plotWidget.canvas.plot(self.currentData, self.indxPlotTable[self.indx])
+        title = self.indxPlotTable[self.indx] + " between " + self.currentMinData.strftime("%d.%m.%Y") + " and " + self.currentMaxData.strftime("%d.%m.%Y")
+        self.plotWidget.canvas.plot(self.currentData, title)
 
     @pyqtSlot(object)
     def setMinDateInCalendar(self, minData):
         self.mindataToDisplay = minData
+        self.currentMinData = minData
         self.pyCal.setMinimumDate(QDate(minData.year, minData.month, minData.day))
         self.pyCal2.setMinimumDate(QDate(minData.year, minData.month, minData.day))
         self.pyCal.setSelectedDate(QDate(minData.year, minData.month, minData.day))
@@ -215,6 +202,7 @@ class MainWindow(QMainWindow):
     @pyqtSlot(object)
     def setMaxDateInCalendar(self, maxData):
         self.maxdataToDisplay = maxData
+        self.currentMaxData = maxData
         self.pyCal.setMaximumDate(QDate(maxData.year, maxData.month, maxData.day))
         self.pyCal2.setMaximumDate(QDate(maxData.year, maxData.month, maxData.day))
         self.pyCal2.setSelectedDate(QDate(maxData.year, maxData.month, maxData.day))
@@ -241,14 +229,47 @@ class PlotCanvas(FigureCanvas):
 
     def plot(self, data, title):
         ax = self.figure.add_subplot(111)
+        #self.figure.tight_layout()
+
+        isEmojiPlot = "Emojis" in title
 
         group_data = list(data.values())[::-1]
         group_names = list(data.keys())[::-1]
 
-        ax.title.set_text(title)    
-        ax.barh(group_names, group_data)
+        ax.title.set_text(title) 
+
+        if isEmojiPlot:
+            emojiNames = []
+            for mostCommonEmoji in group_names:
+                for emojiInList, name in emoji.UNICODE_EMOJI.items():   
+                    if mostCommonEmoji == emojiInList:
+                        emojiNames.append(name)
+            #group_names = emojiNames
+            ax.barh(emojiNames, group_data)
+        else:
+            ax.barh(group_names, group_data)
+
         for i, v in enumerate(group_data):
             ax.text(v, i, " "+str(v), color='blue', va='center', fontweight='bold', fontsize=15)
+            
+            if isEmojiPlot:
+                currentEmoji = group_names[i]
+                filename = str(emoji.UNICODE_EMOJI[currentEmoji]).strip(':')
+                fileFilePath = "C:\\Users\\Daniel\\Desktop\\PythonTest\\"
+
+                arr_img = plt.imread(fileFilePath + filename + ".jpg" , format='jpg')
+
+                imagebox = OffsetImage(arr_img, zoom=0.3)
+                imagebox.image.axes = ax
+                # Define a 1st position to annotate (display it with a marker)
+                xy = (v, i)
+
+                ab = AnnotationBbox(imagebox, 
+                                    xy,
+                                    xybox=(60, 0),
+                                    xycoords='data',
+                                    boxcoords="offset points")
+                ax.add_artist(ab)
 
         self.draw()
     
@@ -256,26 +277,3 @@ class PlotCanvas(FigureCanvas):
         self.figure.clear()
 
     
-
-if __name__ == "__main__":
-
-    app = QApplication(sys.argv)
-    mainWin = MainWindow()
-    
-    msgListReader = WhatsApp.MessageListReader()
-
-    msgListReader.emojiSignal.connect(mainWin.onData)
-    msgListReader.wordSignal.connect(mainWin.onData)
-    msgListReader.messageByPersonSignal.connect(mainWin.onData)
-    msgListReader.mediaMessageByPersonSignal.connect(mainWin.onData)
-
-    msgListReader.minDateSignal.connect(mainWin.setMinDateInCalendar)
-    msgListReader.maxDateSignal.connect(mainWin.setMaxDateInCalendar)
-
-    mainWin.loadNewFileSignal.connect(msgListReader.loadFile)
-    mainWin.acquireDataSignal.connect(msgListReader.onJob)
-    mainWin.setMinDateSignal.connect(msgListReader.setMinDate)
-    mainWin.setMaxDateSignal.connect(msgListReader.setMaxDate)
-    
-    mainWin.show()
-    sys.exit( app.exec_())
