@@ -123,19 +123,19 @@ class MainWindow(QMainWindow):
     def initToolBar(self):
         self.toolbar = self.addToolBar('Open')
         
-        open_action = QAction(QIcon('F:\Projects\WhatsAppStatistics\Icons\Icon_New_File_256x256.png'), '&Save', self)
+        open_action = QAction(QIcon('resources\Icons\Icon_New_File_256x256.png'), '&Save', self)
         open_action.setShortcut('Ctrl+O')
         open_action.setStatusTip('Open File')
         open_action.triggered.connect(self.loadFile)
         self.toolbar.addAction(open_action)
 
-        prevPlot_action = QAction(QIcon('F:\Projects\WhatsAppStatistics\Icons\iconfinder_arrow-left_227602.png'), '&Save', self)
+        prevPlot_action = QAction(QIcon('resources\Icons\iconfinder_arrow-left_227602.png'), '&Save', self)
         prevPlot_action.setShortcut('Left')
         prevPlot_action.setStatusTip('Previous Plot')
         prevPlot_action.triggered.connect(self.prevPlot)
         self.toolbar.addAction(prevPlot_action)
 
-        nextPlot_action = QAction(QIcon('F:\Projects\WhatsAppStatistics\Icons\iconfinder_arrow-right_227601.png'), '&Save', self)
+        nextPlot_action = QAction(QIcon('resources\Icons\iconfinder_arrow-right_227601.png'), '&Save', self)
         nextPlot_action.setShortcut('Right')
         nextPlot_action.setStatusTip('Next Plot')
         nextPlot_action.triggered.connect(self.nextPlot)
@@ -255,9 +255,9 @@ class PlotCanvas(FigureCanvas):
             if isEmojiPlot:
                 currentEmoji = group_names[i]
                 filename = str(emoji.UNICODE_EMOJI[currentEmoji]).strip(':')
-                fileFilePath = "C:\\Users\\Daniel\\Desktop\\PythonTest\\"
+                fileFilePath = "resources\Emojis"
 
-                arr_img = plt.imread(fileFilePath + filename + ".jpg" , format='jpg')
+                arr_img = plt.imread(fileFilePath + "\\" + filename + ".jpg" , format='jpg')
 
                 imagebox = OffsetImage(arr_img, zoom=0.3)
                 imagebox.image.axes = ax
